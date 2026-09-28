@@ -1,0 +1,81 @@
+name: Build Hermes Agent Portable
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: # 手动触发
+
+jobs:
+  build-win-portable:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Setup Python / uv (Hermes runtime dependency)
+        run: |
+          choco install python --version=3.14.0
+          pip install uv
+
+      - name: Install workspace root deps
+        run: npm ci
+
+      - name: Build desktop & generate unpacked portable dir
+        working-directory: ./apps/desktop
+        run: |
+          npm run pack
+        env:
+          HERMES_HOME: ./data
+
+      - name: Zip portable windows package
+        run: |
+          Compress-Archive -Path ./apps/desktop/release/win-unpacked -DestinationPath ./Hermes-Agent-Win-Portable.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hermes-Win-Portable
+          path: Hermes-Agent-Win-Portable.zip
+
+  build-linux-appimage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install system dependencies
+        run: sudo apt-get install libarchive-tools
+      - run: npm ci
+      - name: Build Linux AppImage
+        working-directory: ./apps/desktop
+        run: npm run dist:linux
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hermes-Linux-AppImage
+          path: ./apps/desktop/release/*.AppImage
+
+  release:
+    needs: [build-win-portable, build-linux-appimage]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Hermes-Win-Portable/Hermes-Agent-Win-Portable.zip
+            Hermes-Linux-AppImage/*.AppImage
+          generate_release_notes: true
