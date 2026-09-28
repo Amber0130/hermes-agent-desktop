@@ -1,4 +1,4 @@
-name: Build Hermes Offline Portable (Wrapper EXE, No Source Mod)
+name: Build Hermes Offline Portable (No Source Code Modification)
 on:
   push:
     tags: ["v*"]
@@ -52,93 +52,22 @@ jobs:
           Copy-Item -Recurse -Force ./.venv/* $runtimeDest
         shell: pwsh
 
-      # ========== 构建Go Wrapper EXE ==========
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.23"
 
-      - name: Generate wrapper.go source
-        run: |
-          $goSrc = @'
-package main
-
-import (
-	"os"
-	"path/filepath"
-	"syscall"
-	"unsafe"
-)
-
-func main() {
-	exePath, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	appDir := filepath.Dir(exePath)
-
-	os.Setenv("HERMES_HOME", filepath.Join(appDir, "data"))
-	os.Setenv("HERMES_RUNTIME_DIR", filepath.Join(appDir, "resources", "runtime"))
-	os.Setenv("HERMES_SKIP_RUNTIME_INSTALL", "true")
-	os.Setenv("UV_PYTHON", filepath.Join(appDir, "resources", "runtime", "Scripts", "python.exe"))
-	os.Setenv("UV_EXE", filepath.Join(appDir, "resources", "runtime", "Scripts", "uv.exe"))
-
-	origExe := filepath.Join(appDir, "Hermes Agent Desktop-orig.exe")
-
-	var startup syscall.StartupInfo
-	var procInfo syscall.ProcessInformation
-	startup.Cb = uint32(unsafe.Sizeof(startup))
-
-	err = syscall.CreateProcess(
-		syscall.StringToUTF16Ptr(origExe),
-		nil,
-		nil,
-		nil,
-		false,
-		0,
-		nil,
-		nil,
-		&startup,
-		&procInfo,
-	)
-	if err != nil {
-		panic(err)
-	}
-	syscall.WaitForSingleObject(procInfo.hProcess, syscall.INFINITE)
-	syscall.CloseHandle(procInfo.hProcess)
-	syscall.CloseHandle(procInfo.hThread)
-}
-'@
-          $goSrc | Out-File -Encoding utf8 wrapper.go
-        shell: pwsh
-
-      - name: Build wrapper.exe (GUI 无控制台窗口)
-        run: |
-          go build -ldflags="-H windowsgui" -o wrapper.exe wrapper.go
-        shell: pwsh
-
-      - name: Replace original exe with wrapper
-        run: |
-          $unpackRoot = "./apps/desktop/release/win-unpacked"
-          $origExe = Join-Path $unpackRoot "Hermes Agent Desktop.exe"
-          $renamedOrig = Join-Path $unpackRoot "Hermes Agent Desktop-orig.exe"
-          Move-Item -Path $origExe -Destination $renamedOrig -Force
-          Copy-Item -Path ./wrapper.exe -Destination $origExe -Force
-        shell: pwsh
 
       - name: Compress portable zip
         run: |
-          Compress-Archive -Path ./apps/desktop/release/win-unpacked -DestinationPath ./Hermes-Agent-Offline-Wrapper.zip
+          Compress-Archive -Path ./apps/desktop/release/win-unpacked -DestinationPath ./Hermes-Agent-Offline-NoSrcMod.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Hermes-Offline-Wrapper
-          path: Hermes-Agent-Offline-Wrapper.zip
+          name: Hermes-Offline-NoSrcMod
+          path: Hermes-Agent-Offline-NoSrcMod.zip
 
   release:
     needs: build-win-offline
     runs-on: ubuntu-latest
+    # ========== 关键新增：只有tag触发才执行release job ==========
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
@@ -148,5 +77,5 @@ func main() {
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: Hermes-Agent-Offline-Wrapper/*.zip
+          files: Hermes-Agent-Offline-NoSrcMod/*.zip
           generate_release_notes: true
