@@ -1,6 +1,4 @@
 name: Build Hermes Agent Bundle
-
-# 触发：打tag时运行，例如git tag v0.1.0 && git push --tags
 on:
   push:
     tags:
@@ -12,34 +10,53 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 25
     steps:
-      - name: Setup PowerShell ExecutionPolicy
+      - name: Set PowerShell ExecutionPolicy
         shell: pwsh
         run: |
           Set-ExecutionPolicy Bypass -Scope Process -Force
 
-      - name: Run Hermes install.ps1
+      - name: Download Hermes install.ps1
         shell: pwsh
         run: |
-          # 执行官方一行安装脚本
-          irm https://hermes-agent.nousresearch.com/install.ps1 | iex
+          irm https://hermes-agent.nousresearch.com/install.ps1 -OutFile install.ps1
 
-      - name: Show install folder
+      - name: Run Hermes Install — Custom Output Directory
         shell: pwsh
         run: |
-          $hermesPath = "$env:LOCALAPPDATA\hermes"
-          Write-Host "Hermes安装目录: $hermesPath"
+          # ========== 自定义安装目录 ==========
+          $hermesPath = Join-Path $env:GITHUB_WORKSPACE "hermes"
+          Write-Host "Hermes 安装目录：$hermesPath"
+
+          # 先清空旧目录
+          if(Test-Path $hermesPath){
+            Remove-Item $hermesPath -Recurse -Force
+          }
+
+          # 指定 HermesHome 安装到自定义目录
+          .\install.ps1 -HermesHome $hermesPath
+
+      - name: Validate custom hermes directory
+        shell: pwsh
+        run: |
+          $hermesPath = Join-Path $env:GITHUB_WORKSPACE "hermes"
+          Write-Host "校验路径：$hermesPath"
+          if (-not (Test-Path $hermesPath)) {
+            Write-Error "自定义目录 $hermesPath 不存在，安装失败"
+            exit 1
+          }
           Get-ChildItem $hermesPath
 
-      - name: Zip Hermes folder
+      - name: Zip custom hermes folder
         shell: pwsh
         run: |
-          $hermesPath = "$env:LOCALAPPDATA\hermes"
-          $zipPath = "$env:GITHUB_WORKSPACE\hermes-bundle.zip"
-          Compress-Archive -Path $hermesPath -DestinationPath $zipPath -Force
-          Write-Host "打包输出: $zipPath"
+          $hermesPath = Join-Path $env:GITHUB_WORKSPACE "hermes"
+          $zipOutput = Join-Path $env:GITHUB_WORKSPACE "hermes-bundle.zip"
+          Compress-Archive -Path $hermesPath -DestinationPath $zipOutput -Force
+          Write-Host "打包产物：$zipOutput"
 
-      - name: Upload to GitHub Release
+      - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         with:
           files: hermes-bundle.zip
