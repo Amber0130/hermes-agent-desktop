@@ -1,81 +1,46 @@
-name: Build Hermes Offline Portable (No Source Code Modification)
+name: Build Hermes Agent Bundle
+
+# 触发：打tag时运行，例如git tag v0.1.0 && git push --tags
 on:
   push:
-    tags: ["v*"]
-  workflow_dispatch:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
-  build-win-offline:
+  build:
     runs-on: windows-latest
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
-
-      - name: Setup Python 3.14
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-          cache: 'uv'
-
-      - name: Install uv
-        run: |
-          python -m pip install --upgrade pip
-          pip install uv
-
-      - name: Build full venv (root project)
-        run: |
-          uv sync --frozen
-          uv cache clean
-          Get-ChildItem .venv -Recurse -Include __pycache__ | Remove-Item -Recurse -Force
+      - name: Setup PowerShell ExecutionPolicy
         shell: pwsh
-
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Electron pack, generate win-unpacked
-        working-directory: ./apps/desktop
-        run: npm run pack
-
-      - name: Copy built venv into win-unpacked/resources/runtime
         run: |
-          $unpackRoot = "./apps/desktop/release/win-unpacked"
-          $runtimeDest = Join-Path $unpackRoot "resources\runtime"
-          New-Item -ItemType Directory -Force -Path $runtimeDest
-          Copy-Item -Recurse -Force ./.venv/* $runtimeDest
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+
+      - name: Run Hermes install.ps1
         shell: pwsh
-
-
-
-      - name: Compress portable zip
         run: |
-          Compress-Archive -Path ./apps/desktop/release/win-unpacked -DestinationPath ./Hermes-Agent-Offline-NoSrcMod.zip
+          # 执行官方一行安装脚本
+          irm https://hermes-agent.nousresearch.com/install.ps1 | iex
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Hermes-Offline-NoSrcMod
-          path: Hermes-Agent-Offline-NoSrcMod.zip
+      - name: Show install folder
+        shell: pwsh
+        run: |
+          $hermesPath = "$env:LOCALAPPDATA\hermes"
+          Write-Host "Hermes安装目录: $hermesPath"
+          Get-ChildItem $hermesPath
 
-  release:
-    needs: build-win-offline
-    runs-on: ubuntu-latest
-    # ========== 关键新增：只有tag触发才执行release job ==========
-    if: startsWith(github.ref, 'refs/tags/')
-    permissions:
-      contents: write
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-      - name: Create GitHub Release
+      - name: Zip Hermes folder
+        shell: pwsh
+        run: |
+          $hermesPath = "$env:LOCALAPPDATA\hermes"
+          $zipPath = "$env:GITHUB_WORKSPACE\hermes-bundle.zip"
+          Compress-Archive -Path $hermesPath -DestinationPath $zipPath -Force
+          Write-Host "打包输出: $zipPath"
+
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: Hermes-Agent-Offline-NoSrcMod/*.zip
+          files: hermes-bundle.zip
           generate_release_notes: true
