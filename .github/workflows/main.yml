@@ -25,7 +25,6 @@ jobs:
         run: |
           .\install.ps1
           hermes --version
-          hermes tools
 
       - name: Prepare package root
         shell: powershell
