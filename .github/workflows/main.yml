@@ -67,6 +67,7 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"unsafe"
 )
 
 func main() {
