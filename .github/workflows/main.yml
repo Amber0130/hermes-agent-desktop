@@ -1,75 +1,69 @@
-name: Build Hermes Agent Bundle
+name: Build Hermes Offline Package (方案A)
+run-name: Build Hermes Package A ${{ github.sha }}
 on:
-  push:
-    tags:
-      - 'v*'
-
-permissions:
-  contents: write
+  workflow_dispatch: # 手动触发，网页Actions点Run workflow
 
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 25
     steps:
-      - name: Set PowerShell ExecutionPolicy
-        shell: pwsh
-        run: |
-          Set-ExecutionPolicy Bypass -Scope Process -Force
+      - name: Checkout workspace
+        uses: actions/checkout@v4
 
-      - name: Download Hermes install.ps1
-        shell: pwsh
+      - name: PowerShell ExecutionPolicy
+        shell: powershell
+        run: |
+          Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+
+      - name: Download official install.ps1
+        shell: powershell
         run: |
           irm https://hermes-agent.nousresearch.com/install.ps1 -OutFile install.ps1
 
-      - name: Run Hermes Install — Custom Output Directory
-        shell: pwsh
+      - name: Run official install full download
+        shell: powershell
         run: |
-          $hermesPath = Join-Path $env:GITHUB_WORKSPACE "hermes"
-          Write-Host "Hermes 安装目录：$hermesPath"
+          .\install.ps1
+          hermes --version
+          hermes tools
 
-          if(Test-Path $hermesPath){
-            Remove-Item $hermesPath -Recurse -Force
+      - name: Prepare package root
+        shell: powershell
+        run: |
+          $pkgRoot="${{ github.workspace }}\hermes-offline-pkg"
+          New-Item "$pkgRoot" -ItemType Directory -Force
+          # 打包根目录下放原版脚本
+          Copy-Item install.ps1 "$pkgRoot\" -Force
+
+          # 1. 复制官方hermes主目录 %LOCALAPPDATA%\hermes
+          Copy-Item "$env:LOCALAPPDATA\hermes" "$pkgRoot\hermes" -Recurse -Force
+
+          # 2. uv缓存 %USERPROFILE\.cache\uv
+          New-Item "$pkgRoot\.cache" -ItemType Directory -Force
+          Copy-Item "$env:USERPROFILE\.cache\uv" "$pkgRoot\.cache\uv" -Recurse -Force
+
+          # 3. npm缓存 %APPDATA%\npm-cache
+          Copy-Item "$env:APPDATA\npm-cache" "$pkgRoot\npm-cache" -Recurse -Force
+
+          # 4. playwright浏览器缓存
+          Copy-Item "$env:LOCALAPPDATA\ms-playwright" "$pkgRoot\ms-playwright" -Recurse -Force
+
+          # 复制配置模板（不带密钥）
+          $cfgSrc="$env:LOCALAPPDATA\hermes"
+          if(Test-Path "$cfgSrc\.env"){
+            Copy-Item "$cfgSrc\.env" "$pkgRoot\hermes\.env.template" -Force
           }
-          $env:HERMES_NONINTERACTIVE="1"
-          .\install.ps1 -HermesHome $hermesPath *> install-log.txt
-
-      - name: Validate custom hermes directory
-        shell: pwsh
-        run: |
-          $hermesPath = Join-Path $env:GITHUB_WORKSPACE "hermes"
-          Write-Host "校验路径：$hermesPath"
-          if (-not (Test-Path $hermesPath)) {
-            Write-Error "自定义目录 $hermesPath 不存在，安装失败"
-            exit 1
+          if(Test-Path "$cfgSrc\config.yaml"){
+            Copy-Item "$cfgSrc\config.yaml" "$pkgRoot\hermes\config.yaml" -Force
           }
 
-      # ========= 新增：清理全部 __pycache__ 缓存目录 =========
-      - name: Clean __pycache__ folders
-        shell: pwsh
+      - name: Compress zip
+        shell: powershell
         run: |
-          $hermesPath = Join-Path $env:GITHUB_WORKSPACE "hermes"
-          Get-ChildItem -Path $hermesPath -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
-          Write-Host "✅ All __pycache__ removed"
-          # 杀死所有残留 hermes / python 子进程，释放gateway.lock
-          taskkill /F /IM python.exe 2>nul
-          taskkill /F /IM pythonw.exe 2>nul
-          taskkill /F /IM hermes.exe 2>nul
-          # 删除 stale gateway.lock
-          if (Test-Path hermes/gateway.lock) { Remove-Item hermes/gateway.lock -Force }
-          # 清理 __pycache__
-          Get-ChildItem .venv -Recurse -Include __pycache__ | Remove-Item -Recurse -Force
+          Compress-Archive -Path "${{ github.workspace }}\hermes-offline-pkg\*" -DestinationPath "${{ github.workspace }}\hermes-packageA-win-x64.zip" -Force
 
-      - name: Zip custom hermes folder
-        shell: pwsh
-        run: |
-          $hermesPath = Join-Path $env:GITHUB_WORKSPACE "hermes"
-          $zipOutput = Join-Path $env:GITHUB_WORKSPACE "hermes-bundle.zip"
-          Compress-Archive -Path $hermesPath -DestinationPath $zipOutput -Force
-          Write-Host "打包产物：$zipOutput"
-
-      - name: Upload Release Asset
-        uses: softprops/action-gh-release@v2
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: hermes-bundle.zip
-          generate_release_notes: true
+          name: hermes-packageA-win-x64
+          path: ${{ github.workspace }}\hermes-packageA-win-x64.zip
