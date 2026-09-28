@@ -51,6 +51,14 @@ jobs:
           $hermesPath = Join-Path $env:GITHUB_WORKSPACE "hermes"
           Get-ChildItem -Path $hermesPath -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
           Write-Host "✅ All __pycache__ removed"
+          # 杀死所有残留 hermes / python 子进程，释放gateway.lock
+          taskkill /F /IM python.exe 2>nul
+          taskkill /F /IM pythonw.exe 2>nul
+          taskkill /F /IM hermes.exe 2>nul
+          # 删除 stale gateway.lock
+          if (Test-Path hermes/gateway.lock) { Remove-Item hermes/gateway.lock -Force }
+          # 清理 __pycache__
+          Get-ChildItem .venv -Recurse -Include __pycache__ | Remove-Item -Recurse -Force
 
       - name: Zip custom hermes folder
         shell: pwsh
