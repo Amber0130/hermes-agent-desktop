@@ -1,11 +1,11 @@
-name: Build Hermes Agent Portable
+name: Build Hermes Offline Portable (No Source Code Modification)
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch: # 手动触发
+  workflow_dispatch:
 
 jobs:
-  build-win-portable:
+  build-win-offline:
     runs-on: windows-latest
     steps:
       - name: Checkout source
@@ -19,34 +19,74 @@ jobs:
           node-version: 22
           cache: 'npm'
 
-      - name: Setup Python / uv (Hermes runtime dependency)
+      - name: Setup Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: 'uv'
+
+      - name: Install uv
         run: |
-          choco install python --version=3.14.0
+          python -m pip install --upgrade pip
           pip install uv
 
-      - name: Install workspace root deps
+      - name: Build full venv (root project)
+        run: |
+          uv sync --frozen
+          uv cache clean
+          Get-ChildItem .venv -Recurse -Include __pycache__ | Remove-Item -Recurse -Force
+        shell: pwsh
+
+      - name: Install npm dependencies
         run: npm ci
 
-      - name: Build desktop & generate unpacked portable dir
+      - name: Electron pack, generate win-unpacked
         working-directory: ./apps/desktop
-        run: |
-          npm run pack
-        env:
-          HERMES_HOME: ./data
+        run: npm run pack
 
-      - name: Zip portable windows package
+      - name: Copy built venv into win-unpacked/resources/runtime
         run: |
-          Compress-Archive -Path ./apps/desktop/release/win-unpacked -DestinationPath ./Hermes-Agent-Win-Portable.zip
+          $unpackRoot = "./apps/desktop/release/win-unpacked"
+          $runtimeDest = Join-Path $unpackRoot "resources\runtime"
+          New-Item -ItemType Directory -Force -Path $runtimeDest
+          Copy-Item -Recurse -Force ./.venv/* $runtimeDest
+        shell: pwsh
+
+      - name: Generate start-hermes.bat
+        run: |
+          $unpackRoot = "./apps/desktop/release/win-unpacked"
+          $batPath = Join-Path $unpackRoot "start-hermes.bat"
+          $batContent = @'
+@echo off
+chcp 65001 >nul
+setlocal
+set "APP_DIR=%~dp0"
+set "HERMES_HOME=%APP_DIR%data"
+set "HERMES_RUNTIME_DIR=%APP_DIR%resources\runtime"
+set "HERMES_SKIP_RUNTIME_INSTALL=true"
+set "UV_PYTHON=%APP_DIR%resources\runtime\Scripts\python.exe"
+set "UV_EXE=%APP_DIR%resources\runtime\Scripts\uv.exe"
+start "" "%APP_DIR%Hermes Agent Desktop.exe"
+endlocal
+'@
+          $batContent | Out-File -Encoding utf8 $batPath
+        shell: pwsh
+
+      - name: Compress portable zip
+        run: |
+          Compress-Archive -Path ./apps/desktop/release/win-unpacked -DestinationPath ./Hermes-Agent-Offline-NoSrcMod.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Hermes-Win-Portable
-          path: Hermes-Agent-Win-Portable.zip
+          name: Hermes-Offline-NoSrcMod
+          path: Hermes-Agent-Offline-NoSrcMod.zip
 
   release:
-    needs: [build-win-portable]
+    needs: build-win-offline
     runs-on: ubuntu-latest
+    # ========== 关键新增：只有tag触发才执行release job ==========
+    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
     steps:
@@ -55,6 +95,5 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            Hermes-Win-Portable/Hermes-Agent-Win-Portable.zip
+          files: Hermes-Agent-Offline-NoSrcMod/*.zip
           generate_release_notes: true
