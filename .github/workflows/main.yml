@@ -44,7 +44,15 @@ jobs:
           } else {
             Write-Warning "npm-cache not found, skip copy: $srcNpmCache"
           }
-          
+          # 2. uv缓存 %USERPROFILE\.cache\uv
+          $srcUvCache = "$env:USERPROFILE\.cache\uv"
+          New-Item "$pkgRoot\.cache" -ItemType Directory -Force
+          if (Test-Path $srcUvCache) {
+            Copy-Item $srcUvCache "$pkgRoot\.cache\uv" -Recurse -Force
+          } else {
+            Write-Error "uv cache missing: $srcUvCache"
+            exit 1
+          }
           # 4. playwright浏览器缓存
           $srcPlaywright = "$env:LOCALAPPDATA\ms-playwright"
           if (Test-Path $srcPlaywright) {
