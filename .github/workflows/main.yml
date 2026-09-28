@@ -65,7 +65,7 @@ jobs:
       - name: Compress zip
         shell: powershell
         run: |
-          Compress-Archive -Path "${{ github.workspace }}\hermes-offline-pkg\*" -DestinationPath "${{ github.workspace }}\hermes-packageA-win-x64.zip" -Force
+          Compress-Archive -Path "${{ github.workspace }}\hermes-offline-pkg\*" -DestinationPath "${{ github.workspace }}\hermes-packageA-win-x64.zip" -CompressionLevel Fastest -Force
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
