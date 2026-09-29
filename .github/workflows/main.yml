@@ -26,9 +26,6 @@ jobs:
           iex .\install.ps1
           hermes --version
           hermes desktop
-          ls %LOCALAPPDATA%\hermes
-          ls %LOCALAPPDATA%\hermes\hermes-agent
-
       - name: Prepare package root
         shell: powershell
         run: |
