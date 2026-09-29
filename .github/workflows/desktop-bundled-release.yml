@@ -88,7 +88,7 @@ on:
         default: ''
         type: string
       release-phase:
-        required: true
+        default: '123'
         type: string
       manifest-sha256:
         default: ''
