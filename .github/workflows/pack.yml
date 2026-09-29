@@ -5,12 +5,12 @@ on:
 
 jobs:
   build-win:
-    runs-on: windows-latest-32-core
+    runs-on: windows-latest
     env:
       WORK_DIR: ${{ github.workspace }}/.build/desktop-job
       CACHE_DIR: ${{ github.workspace }}/.cache/desktop-inputs
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
           lfs: true
@@ -27,15 +27,24 @@ jobs:
           architecture: x64
           cache: npm
       - run: npm ci
+      - name: Restore desktop dependency inputs
+        id: build-cache
+        uses: ./.github/actions/desktop-build-cache
+        with:
+          phase: restore
+          source: ${{ github.workspace }}
+          work: ${{ runner.temp }}/desktop-job
+          cache: ${{ github.workspace }}/.cache/desktop-inputs
+          producer: desktop
       - name: Cache inputs
         uses: actions/cache@v4
         with:
           path: ${{ env.CACHE_DIR }}
           key: windows-hermes-desktop-bundled-${{ hashFiles('scripts/bundles/**') }}
       - name: Prepare
-        run: python scripts/bundles/desktop.py --commit=${{ github.sha }} --variant bundled --prepare-only --work "${{ env.WORK_DIR }}" --cache "${{ env.CACHE_DIR }}"
+        run: python scripts/bundles/desktop.py --commit=${{ github.sha }} --variant bundled --prepare-only --work "$RUNNER_TEMP/desktop-job" --cache "${{ env.CACHE_DIR }}"
       - name: Build bundle
-        run: python scripts/bundles/desktop.py --prepared "${{ env.WORK_DIR }}/prepared.json"
+        run: python scripts/bundles/desktop.py --prepared "$RUNNER_TEMP/desktop-job/prepared.json"
       - name: List outputs
         run: ls -Recurse "${{ env.WORK_DIR }}"
       - uses: actions/upload-artifact@v4
