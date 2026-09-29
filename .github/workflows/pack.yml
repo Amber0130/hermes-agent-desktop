@@ -18,6 +18,8 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
+      - name: Install MSVC Build Tools & CMake for pilk
+        uses: ilammy/msvc-dev-cmd@v1
       - name: Install python script dependencies
         run: pip install pydantic pyyaml httpx tqdm cryptography packaging
       - uses: actions/setup-node@v4
