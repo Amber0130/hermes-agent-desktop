@@ -18,12 +18,7 @@ jobs:
       - name: Download official install.ps1
         shell: powershell
         run: |
-          irm https://hermes-agent.nousresearch.com/install.ps1 -OutFile install.ps1
-
-      - name: Run official install full download
-        shell: powershell
-        run: |
-          .\install.ps1
+          irm https://hermes-agent.nousresearch.com/install.ps1 | iex
           hermes --version
           hermes desktop
 
