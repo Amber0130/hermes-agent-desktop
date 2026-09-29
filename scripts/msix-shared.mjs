@@ -112,7 +112,7 @@ export function storePackageVersionAt(epochSeconds) {
  */
 export function canaryPackageVersionAt(epochSeconds) {
   const date = new Date(epochSeconds * 1000)
-  if (!Number.isInteger(epochSeconds) || !Number.isFinite(date.getTime())) {
+  if (!Number.isInteger(epochSeconds)) {
     throw new Error('Canary package version needs a valid immutable build timestamp')
   }
   const yy = date.getUTCFullYear() % 100
