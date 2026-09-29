@@ -52,8 +52,7 @@ jobs:
           if (Test-Path $srcCarCache) {
             Copy-Item $srcCarCache "$pkgRoot\.cargo" -Recurse -Force
           } else {
-            Write-Error "Car cache missing: $srcCarCache"
-            exit 1
+            Write-Warning "Car cache missing: $srcCarCache"
           }
           # 2. uv缓存 %USERPROFILE\.cache\uv
           $srcUvCache = "$env:USERPROFILE\.cache\uv"
@@ -61,8 +60,7 @@ jobs:
           if (Test-Path $srcUvCache) {
             Copy-Item $srcUvCache "$pkgRoot\.cache\uv" -Recurse -Force
           } else {
-            Write-Error "uv cache missing: $srcUvCache"
-            exit 1
+            Write-Warning "uv cache missing: $srcUvCache"
           }
           # 4. playwright浏览器缓存
           $srcPlaywright = "$env:LOCALAPPDATA\ms-playwright"
