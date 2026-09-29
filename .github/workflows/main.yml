@@ -23,7 +23,7 @@ jobs:
       - name: Run official install full download
         shell: powershell
         run: |
-          iex install.ps1
+          iex .\install.ps1
           hermes --version
           hermes desktop
 
