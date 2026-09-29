@@ -1,17 +1,12 @@
 name: Build Hermes Desktop Bundled Windows Only
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: Version tag
-        required: true
-        default: v0.1.0
+
 
 jobs:
   build-win:
     runs-on: windows-latest
     env:
-      TAG: ${{ github.event.inputs.tag || 'v0.1.0' }}
       WORK_DIR: ${{ github.workspace }}/.build/desktop-job
       CACHE_DIR: ${{ github.workspace }}/.cache/desktop-inputs
     steps:
@@ -36,7 +31,7 @@ jobs:
           path: ${{ env.CACHE_DIR }}
           key: windows-hermes-desktop-bundled-${{ hashFiles('scripts/bundles/**') }}
       - name: Prepare
-        run: python scripts/bundles/desktop.py --tag ${{ env.TAG }} --variant bundled --prepare-only --work "${{ env.WORK_DIR }}" --cache "${{ env.CACHE_DIR }}"
+        run: python scripts/bundles/desktop.py --commit=${{ github.sha }} --variant bundled --prepare-only --work "${{ env.WORK_DIR }}" --cache "${{ env.CACHE_DIR }}"
       - name: Build bundle
         run: python scripts/bundles/desktop.py --prepared "${{ env.WORK_DIR }}/prepared.json"
       - name: List outputs
