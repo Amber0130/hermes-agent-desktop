@@ -47,6 +47,15 @@ jobs:
             Write-Warning "npm-cache not found, skip copy: $srcNpmCache"
           }
           # 2. uv缓存 %USERPROFILE\.cache\uv
+          $srcCarCache = "$env:USERPROFILE\.cargo"
+          New-Item "$pkgRoot\.cargo" -ItemType Directory -Force
+          if (Test-Path $srcCarCache) {
+            Copy-Item $srcCarCache "$pkgRoot\.cargo" -Recurse -Force
+          } else {
+            Write-Error "Car cache missing: $srcCarCache"
+            exit 1
+          }
+          # 2. uv缓存 %USERPROFILE\.cache\uv
           $srcUvCache = "$env:USERPROFILE\.cache\uv"
           New-Item "$pkgRoot\.cache" -ItemType Directory -Force
           if (Test-Path $srcUvCache) {
